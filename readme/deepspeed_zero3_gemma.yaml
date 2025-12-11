@@ -1,0 +1,35 @@
+# deepspeed_zero3_gemma.yaml
+compute_environment: LOCAL_MACHINE
+distributed_type: DEEPSPEED
+num_processes: 8 # Adjust based on your GPU setup (e.g., 4 for a 4-GPU machine)
+num_machines: 1
+machine_rank: 0
+main_training_function: main
+mixed_precision: bf16 # Use bf16 for Gemma models if your hardware supports it, otherwise 'fp16'
+deepspeed_config:
+  zero3_init_flag: false
+  zero_optimization:
+    stage: 3
+    offload_optimizer:
+      device: cpu
+      pin_memory: true
+    offload_param:
+      device: cpu
+      pin_memory: true
+    overlap_comm: true
+    reduce_bucket_size: 2e8
+    stage3_prefetch_bucket_size: 1.5e8
+    stage3_param_persistence_threshold: 1e4
+    stage3_max_live_parameters: 1e9
+    stage3_max_reuse_distance: 1e9
+    gap_size: 1e8
+    contiguous_gradients: true
+  gradient_accumulation_steps: 1 # Adjust based on your batch size and memory
+  gradient_clipping: 1.0
+  train_batch_size: auto # Let Accelerate handle batch size distribution
+  train_micro_batch_size_per_gpu: auto # Let Accelerate handle micro batch size
+  wall_clock_breakdown: false
+  fp16:
+    enabled: false # Set to true if using fp16 mixed_precision
+  bfloat16:
+    enabled: true # Set to true if using bf16 mixed_precision
