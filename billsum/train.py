@@ -12,6 +12,8 @@ from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
 
 
+# Command used:  accelerate launch --mixed_precision bf16 train.py
+
 # ======================
 # Config
 # ======================
@@ -132,8 +134,7 @@ def create_trainer(dataset: DatasetDict) -> SFTTrainer:
         MODEL_ID,
         torch_dtype=torch.bfloat16,
         attn_implementation="eager",
-        # quantization_config=quantization_config,
-        device_map="auto",
+        # quantization_config=quantization_config
     )
 
     # Prepare dataset (adds "messages")
@@ -153,14 +154,15 @@ def create_trainer(dataset: DatasetDict) -> SFTTrainer:
         max_length=4096,
         packing=False,
         num_train_epochs=5,
-        per_device_train_batch_size=1,
+        per_device_train_batch_size=2,
         per_device_eval_batch_size=1,
-        gradient_checkpointing=False,
+        gradient_accumulation_steps=4,
+        gradient_checkpointing=True,
         optim="adamw_torch_fused",
         logging_steps=10,
         save_strategy="epoch",
         eval_strategy="epoch",
-        learning_rate=1e-5,
+        learning_rate=1e-4,
         fp16=(torch_dtype == torch.float16),
         bf16=(torch_dtype == torch.bfloat16),
         warmup_ratio=0.05,
