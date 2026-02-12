@@ -35,7 +35,7 @@ def compute_reward(pred):
 
 
 def load_dataset(file_path, tokenizer):
-    dataset = [json.loads(line.strip()) for line in open(file_path)][:5000]
+    dataset = [json.loads(line.strip()) for line in open(file_path)]
 
     dpo_dataset = {"prompt": [], "chosen": [], "rejected": []}
     for item in dataset:
