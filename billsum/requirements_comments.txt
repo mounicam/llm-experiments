@@ -1,9 +1,0 @@
-GH200
-Had to use this version of torch
-# 1. Clean out the old attempts
-pip uninstall -y torch torchvision torchaudio
-
-# 2. Install the 12.8-specific wheels (using the nightly index for ARM64 support)
-pip install --pre torch torchvision torchaudio \
-  --index-url https://download.pytorch.org/whl/nightly/cu128 \
-  --extra-index-url https://pypi.org/simple
