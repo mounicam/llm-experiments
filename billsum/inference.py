@@ -18,25 +18,14 @@ class TextGenerator:
     def _generate_prompts_with_cefr_labels(self, dataset, cefr_label):
         input_prompts = []
         for item in dataset:
-            msg = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": PROMPT_TEMPLATE.render(
-                        text=item["text"], level=cefr_label
-                    ),
-                },
-            ]
-            final_msg = self.tokenizer.apply_chat_template(
-                msg, tokenize=False, add_generation_prompt=True
-            )
+            final_msg = generate_prompt(self.tokenizer, text, cefr_label)
             input_prompts.append(final_msg)
         return input_prompts
 
     def generate_dataset(self, dataset):
 
         # 1. PRE-COMPUTE ALL PROMPTS
-        # We create a massive list: [Prompt1_A1, Prompt1_A2... PromptN_C2]
+        # We create a massive list: [Prompt1_A, Prompt1_B... PromptN_C]
         all_flattened_prompts = []
         for cefr_label in CEFR_LABELS:
             prompts = self._generate_prompts_with_cefr_labels(dataset, cefr_label)

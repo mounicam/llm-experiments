@@ -39,12 +39,12 @@ class Evaluator:
     def _run_metrics(self, all_texts, all_references):
 
         print(f"Scoring {len(all_texts)} total candidates...")
-        cefr_probs_flat = list(tqdm(self.classifier(all_texts), total=len(all_texts))) 
-        
+        cefr_probs_flat = list(tqdm(self.classifier(all_texts), total=len(all_texts)))
+
         _, _, f1_flat = score(
             all_texts,
             all_references,
-            model_type="roberta-large", #"microsoft/deberta-xlarge-mnli",
+            model_type="roberta-large",  # "microsoft/deberta-xlarge-mnli",
             lang="en",
             batch_size=16,
             device="cuda:0",
@@ -62,7 +62,7 @@ class Evaluator:
         for idx, (item_idx, label, cand_idx) in enumerate(metadata):
             # Extract CEFR prob for the specific label we requested
             probs_dict = {p["label"]: p["score"] for p in cefr_probs_flat[idx]}
-            c_score = probs_dict.get(label, 0.0)
+            c_score = probs_dict[label + "1"] + probs_dict[label + "2"]
 
             # Store metrics
             dataset[item_idx]["predictions"][label][cand_idx]["cefr_prob"] = c_score

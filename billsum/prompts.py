@@ -1,6 +1,7 @@
 from jinja2 import Template
 
-CEFR_LABELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
+# CEFR_LABELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
+CEFR_LABELS = ["A", "B", "C"]
 
 SYSTEM_PROMPT = "You are helpful assistant designed to make English legal text more readable for different target audience at different CEFR readability levels."
 
@@ -10,6 +11,7 @@ PROMPT_TEMPLATE = Template(
 
 
 def generate_prompt(tokenizer, text, cefr_label):
+    cefr_label = f"{cefr_label}1/{cefr_label}2"
     msg = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {
@@ -17,7 +19,6 @@ def generate_prompt(tokenizer, text, cefr_label):
             "content": PROMPT_TEMPLATE.render(text=text, level=cefr_label),
         },
     ]
-
     final_msg = tokenizer.apply_chat_template(
         msg, tokenize=False, add_generation_prompt=True
     )
