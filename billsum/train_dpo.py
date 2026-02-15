@@ -1,18 +1,19 @@
 # dpo_train.py
+from unsloth import FastLanguageModel
+
 import os
 import json
 import argparse
 import torch
 from prompts import generate_prompt
 from trl import DPOTrainer, DPOConfig
-from unsloth import FastLanguageModel
 from datasets import Dataset, DatasetDict
 from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
-
+MAX_SEQ_LENGTH=4096
 
 def format_example(ex):
     """
@@ -97,7 +98,7 @@ def main():
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.model_id,
-        max_seq_length=4096,
+        max_seq_length=MAX_SEQ_LENGTH,
         dtype=None,
         load_in_4bit=True,
     )
@@ -140,40 +141,40 @@ def main():
         # [NEW] "unsloth" uses 30% less VRAM, fits 2x larger batch sizes!
         use_gradient_checkpointing="unsloth",  # True or "unsloth" for very long context
         random_state=3407,
-        max_seq_length=4096,
+        max_seq_length=MAX_SEQ_LENGTH,
     )
 
     # Dataset
     train_dataset = load_dataset(args.train_dataset, tokenizer)
-    # eval_dataset = load_dataset(args.eval_dataset, tokenizer)
+    eval_dataset = load_dataset(args.eval_dataset, tokenizer)
     print(train_dataset[0]["prompt"])
     print(train_dataset[0]["chosen"])
     print(train_dataset[0]["rejected"])
 
     train_ds = train_dataset.map(format_example)
-    # eval_ds = eval_dataset.map(format_example)
+    eval_ds = eval_dataset.map(format_example)
 
     dpo_config = DPOConfig(
         output_dir=args.output_dir,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=16,
         learning_rate=5e-6,
-        num_train_epochs=1,
+        num_train_epochs=3,
         logging_steps=10,
         save_strategy="epoch",
         optim="adamw_8bit",
         warmup_ratio=0.1,
-        # eval_strategy="epoch",
+        eval_strategy="epoch",
         save_total_limit=1,
         bf16=True,
         seed=42,
-        gradient_checkpointing=False,
+        gradient_checkpointing=True,
         # --- DPO specific ---
         beta=0.1,  # KL temperature
-        max_length=4096,
+        max_length=MAX_SEQ_LENGTH,
         remove_unused_columns=False,
-        dataloader_num_workers=4,
-        dataloader_pin_memory=True,
+        # dataloader_num_workers=4,
+        # dataloader_pin_memory=True,
     )
 
     trainer = DPOTrainer(
@@ -181,7 +182,7 @@ def main():
         # ref_model=ref_model,
         args=dpo_config,
         train_dataset=train_ds,
-        # eval_dataset=eval_ds,
+        eval_dataset=eval_ds,
         processing_class=tokenizer,
     )
 

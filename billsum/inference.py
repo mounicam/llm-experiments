@@ -1,4 +1,5 @@
 from vllm import LLM
+from prompts import generate_prompt
 from transformers import AutoTokenizer
 from prompts import CEFR_LABELS, SYSTEM_PROMPT, PROMPT_TEMPLATE
 
@@ -18,7 +19,7 @@ class TextGenerator:
     def _generate_prompts_with_cefr_labels(self, dataset, cefr_label):
         input_prompts = []
         for item in dataset:
-            final_msg = generate_prompt(self.tokenizer, text, cefr_label)
+            final_msg = generate_prompt(self.tokenizer, item["text"], cefr_label)
             input_prompts.append(final_msg)
         return input_prompts
 
@@ -30,6 +31,7 @@ class TextGenerator:
         for cefr_label in CEFR_LABELS:
             prompts = self._generate_prompts_with_cefr_labels(dataset, cefr_label)
             all_flattened_prompts.extend(prompts)
+        print(prompts[0])
 
         # 2. RUN ONE SINGLE GENERATION CALL
         # This is where the magic happens. vLLM will parallelize across all labels automatically.
@@ -40,7 +42,8 @@ class TextGenerator:
             outputs = self.generator.generate(all_flattened_prompts, params)
             for idx, output in enumerate(outputs):
                 all_generations[idx].extend([o.text for o in output.outputs])
-
+        print(all_generations[0])
+        
         # 3. RE-SHAPE BACK INTO THE DATASET
         # Since we flattened [Labels][Dataset], we unflatten carefully
         num_items = len(dataset)

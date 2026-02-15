@@ -59,8 +59,10 @@ def main():
     # Create sampling params
     if args.rollouts:
         sampling_params_list = [
-            SamplingParams(temperature=0.3, top_p=0.85, n=2, max_tokens=1024),
-            SamplingParams(temperature=0.7, top_p=0.9, n=2, max_tokens=1024),
+            SamplingParams(temperature=0.3, top_p=0.85, n=1, max_tokens=1024),
+            SamplingParams(temperature=0.7, top_p=0.9, n=1, max_tokens=1024),
+            SamplingParams(temperature=0.9, top_p=0.95, n=1, max_tokens=1024),
+            SamplingParams(temperature=1.1, top_p=1.0, n=1, max_tokens=1024, presence_penalty=0.6)
         ]
     else:
         sampling_params_list = [

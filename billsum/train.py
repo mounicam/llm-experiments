@@ -26,10 +26,10 @@ Had to filter long examples to not eval_loss as NaN.
 # ======================
 
 MODEL_ID = "google/gemma-3-1b-it"
-OUTPUT_DIR = "models/gemma_sft/v1"
+OUTPUT_DIR = "models/gemma_sft/v3"
 TRAIN_PATH = "dataset/org_with_cefr_labels/us_sft_train.jsonl"
 DEV_PATH = "dataset/org_with_cefr_labels/us_sft_dev.jsonl"
-
+MAX_SEQ_LENGTH=4096
 
 # ======================
 # Data loading
@@ -80,7 +80,7 @@ def build_preprocess_fn(tokenizer):
     return preprocess
 
 
-def filter_long_examples(dataset, tokenizer, max_length=4096):
+def filter_long_examples(dataset, tokenizer, max_length=MAX_SEQ_LENGTH):
 
     def is_short_enough(batch):
         texts = [
@@ -168,9 +168,9 @@ def create_trainer(dataset: DatasetDict) -> SFTTrainer:
 
     args = SFTConfig(
         output_dir=OUTPUT_DIR,
-        max_length=4096,
+        max_length=MAX_SEQ_LENGTH,
         packing=False,
-        num_train_epochs=3,
+        num_train_epochs=10,
         per_device_train_batch_size=2,
         per_device_eval_batch_size=1,
         gradient_accumulation_steps=4,
@@ -179,7 +179,7 @@ def create_trainer(dataset: DatasetDict) -> SFTTrainer:
         logging_steps=10,
         save_strategy="epoch",
         eval_strategy="epoch",
-        learning_rate=2e-5,
+        learning_rate=1e-4,
         fp16=(model.dtype == torch.float16),
         bf16=(model.dtype == torch.bfloat16),
         warmup_ratio=0.05,
