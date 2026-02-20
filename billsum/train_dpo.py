@@ -32,16 +32,20 @@ def format_example(ex):
 
 
 def compute_reward(pred):
-    return (pred["cefr_prob"] + 0.5 * pred["bert_score"]) * 100.0 / 1.5
+    # return (pred["cefr_prob"] + 0.5 * pred["bert_score"]) * 100.0 / 1.5
+    return pred["cefr_prob"]
 
 
 def load_dataset(file_path, tokenizer):
     dataset = [json.loads(line.strip()) for line in open(file_path)]
 
     dpo_dataset = {"prompt": [], "chosen": [], "rejected": []}
+    a_labels, b_labels, c_labels = 0, 0, 0
     for item in dataset:
         for cefr_label, predictions in item["predictions"].items():
             prompt = generate_prompt(tokenizer, item["text"], cefr_label)
+
+            threshold = 0.1 if cefr_label == "A" else 0.2
 
             for i in range(0, len(predictions)):
                 for j in range(i + 1, len(predictions)):
@@ -49,18 +53,22 @@ def load_dataset(file_path, tokenizer):
                     r_j = compute_reward(predictions[j])
 
                     accept, reject = None, None
-                    if r_i > r_j and (r_i - r_j) > 1.5:
+                    if r_i > r_j and (r_i - r_j) > threshold:
                         accept = predictions[i]["generation"]
                         reject = predictions[j]["generation"]
-                    elif r_j > r_i and (r_j - r_i) > 1.5:
+                    elif r_j > r_i and (r_j - r_i) > threshold:
                         accept = predictions[j]["generation"]
                         reject = predictions[i]["generation"]
 
                     if accept and reject:
+                        a_labels += "A1/A2" in prompt
+                        b_labels += "B1/B2" in prompt
+                        c_labels += "C1/C2" in prompt
                         dpo_dataset["prompt"].append(prompt)
                         dpo_dataset["chosen"].append(accept)
                         dpo_dataset["rejected"].append(reject)
 
+    print(a_labels, b_labels, c_labels, len(dpo_dataset["prompt"]))
     return Dataset.from_dict(dpo_dataset)
 
 
@@ -78,58 +86,12 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # bnb4 = BitsAndBytesConfig(
-    #     load_in_4bit=True,
-    #     bnb_4bit_use_double_quant=True,
-    #     bnb_4bit_quant_type="nf4",
-    #     bnb_4bit_compute_dtype=torch.bfloat16,
-    #     bnb_4bit_quant_storage=torch.bfloat16,
-    # )
-
-    # # Policy model (trainable)
-    # policy_base = AutoModelForCausalLM.from_pretrained(
-    #     args.model_id,
-    #     quantization_config=bnb4,
-    #     device_map="auto",
-    #     attn_implementation="eager",
-    # )
-    # policy_base.config.use_cache = False
-    # policy_base.gradient_checkpointing_enable()
-
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.model_id,
         max_seq_length=MAX_SEQ_LENGTH,
         dtype=None,
         load_in_4bit=True,
     )
-
-    # LoRA adapters on policy
-    # peft_cfg = LoraConfig(
-    #     r=16,
-    #     lora_alpha=32,
-    #     lora_dropout=0.05,
-    #     bias="none",
-    #     task_type="CAUSAL_LM",
-    #     target_modules=[
-    #         "q_proj",
-    #         "k_proj",
-    #         "v_proj",
-    #         "o_proj",
-    #     ],  # common set; adjust if needed
-    # )
-    # policy_model = get_peft_model(policy_base, peft_cfg)
-
-    # # Reference model (frozen). In DPO, ref is usually the same base model before training.
-    # ref_model = AutoModelForCausalLM.from_pretrained(
-    #     args.model_id,
-    #     quantization_config=bnb4,  # could also do 8-bit to be safer numerically
-    #     device_map="auto",
-    #     attn_implementation="eager",
-    # )
-    # ref_model.config.use_cache = False
-    # ref_model.eval()
-    # for p in ref_model.parameters():
-    #     p.requires_grad_(False)
 
     model = FastLanguageModel.get_peft_model(
         model,
@@ -138,8 +100,7 @@ def main():
         lora_alpha=32,
         lora_dropout=0,  # Supports any, but = 0 is optimized
         bias="none",  # Supports any, but = "none" is optimized
-        # [NEW] "unsloth" uses 30% less VRAM, fits 2x larger batch sizes!
-        use_gradient_checkpointing="unsloth",  # True or "unsloth" for very long context
+        use_gradient_checkpointing="unsloth",
         random_state=3407,
         max_seq_length=MAX_SEQ_LENGTH,
     )
@@ -170,11 +131,9 @@ def main():
         seed=42,
         gradient_checkpointing=True,
         # --- DPO specific ---
-        beta=0.1,  # KL temperature
+        beta=0.1,
         max_length=MAX_SEQ_LENGTH,
         remove_unused_columns=False,
-        # dataloader_num_workers=4,
-        # dataloader_pin_memory=True,
     )
 
     trainer = DPOTrainer(
