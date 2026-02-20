@@ -1,17 +1,50 @@
-from peft import PeftModel
+import argparse
 import transformers
+from peft import PeftModel
 
-model_id = "google/gemma-3-1b-it"
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Augment dataset with rollout generations using vLLM"
+    )
 
-# Load Model base model
-base_model = transformers.AutoModelForCausalLM.from_pretrained(model_id)
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        required=True,
+        help="Path to peft dir",
+    )
 
-# Merge LoRA and base model and save
-peft_model = PeftModel.from_pretrained(
-    base_model, "models/gemma_sft/v3/checkpoint-2391"
-)
-merged_model = peft_model.merge_and_unload()
-merged_model.save_pretrained("models/gemma_sft/v3/merged")
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        required=True,
+        help="Path to peft dir",
+    )
 
-processor = transformers.AutoTokenizer.from_pretrained(model_id)
-processor.save_pretrained("models/gemma_sft/v3/merged")
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="google/gemma-3-1b-it",
+        help="Model name to use for generation",
+    )
+
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    # Load Model base model
+    base_model = transformers.AutoModelForCausalLM.from_pretrained(args.model_name)
+
+    # Merge LoRA and base model and save
+    peft_model = PeftModel.from_pretrained(base_model, args.input_dir)
+    merged_model = peft_model.merge_and_unload()
+    merged_model.save_pretrained(args.output_dir)
+
+    processor = transformers.AutoTokenizer.from_pretrained(args.model_name)
+    processor.save_pretrained(args.output_dir)
+
+
+if __name__ == "__main__":
+    main()
