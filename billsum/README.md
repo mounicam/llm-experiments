@@ -148,5 +148,4 @@ python run_metrics.py \
 ## References
 - **BillSum Dataset**: [arXiv:1910.00523](https://arxiv.org/abs/1910.00523)
 - **CEFR Framework**: [Council of Europe](https://www.coe.int/en/web/common-european-framework-reference-languages)
-- **DPO**: [arXiv:2305.18290](https://arxiv.org/abs/2305.18290)
-- **GRPO**: Group Relative Policy Optimization (TRL implementation)
+
