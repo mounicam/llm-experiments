@@ -1,3 +1,11 @@
+"""
+Evaluation module for computing metrics on generated summaries.
+
+This module provides the Evaluator class for computing CEFR classification
+scores and BERTScore metrics on generated text summaries. These metrics
+are used as rewards for reinforcement learning (DPO/GRPO) training.
+"""
+
 import sys
 import numpy as np
 from tqdm import tqdm
@@ -7,8 +15,25 @@ from transformers import pipeline
 
 
 class Evaluator:
+    """
+    Evaluator for computing CEFR and BERTScore metrics on generated summaries.
+
+    This class handles batch evaluation of predictions across multiple CEFR
+    levels, computing both reading level classification scores and semantic
+    similarity scores against reference summaries.
+
+    Attributes:
+        classifier: HuggingFace pipeline for CEFR level classification
+        verbose (bool): Whether to print metrics after computation
+    """
 
     def __init__(self, verbose):
+        """
+        Initialize evaluator with CEFR classifier.
+
+        Args:
+            verbose (bool): If True, print aggregate metrics after computation
+        """
         self.classifier = pipeline(
             "text-classification",
             model="AbdullahBarayan/ModernBERT-base-doc_en-Cefr",
@@ -19,6 +44,21 @@ class Evaluator:
         self.verbose = verbose
 
     def _flatten_dataset(self, dataset):
+        """
+        Flatten dataset predictions into lists for batch processing.
+
+        Converts nested structure (dataset -> items -> labels -> candidates)
+        into flat lists suitable for batch metric computation.
+
+        Args:
+            dataset (list): Dataset with predictions structure
+
+        Returns:
+            tuple: (all_texts, all_references, metadata) where:
+                - all_texts: List of generated texts
+                - all_references: List of reference summaries
+                - metadata: List of (item_idx, label, candidate_idx) tuples
+        """
         all_texts = []
         all_references = []
         metadata = []  # To keep track of (item_index, label, candidate_index)
@@ -37,6 +77,18 @@ class Evaluator:
         return all_texts, all_references, metadata
 
     def _run_metrics(self, all_texts, all_references):
+        """
+        Compute CEFR and BERTScore metrics for all texts.
+
+        Args:
+            all_texts (list): List of generated texts to evaluate
+            all_references (list): List of reference summaries
+
+        Returns:
+            tuple: (cefr_probs_flat, bert_scores_flat) where:
+                - cefr_probs_flat: List of CEFR probability distributions
+                - bert_scores_flat: List of BERTScore F1 scores
+        """
 
         print(f"Scoring {len(all_texts)} total candidates...")
         cefr_probs_flat = list(tqdm(self.classifier(all_texts), total=len(all_texts)))
@@ -44,7 +96,7 @@ class Evaluator:
         _, _, f1_flat = score(
             all_texts,
             all_references,
-            model_type="roberta-large",  # "microsoft/deberta-xlarge-mnli",
+            model_type="microsoft/deberta-xlarge-mnli",
             lang="en",
             batch_size=16,
             device="cuda:0",
@@ -55,6 +107,15 @@ class Evaluator:
         return cefr_probs_flat, bert_scores_flat
 
     def compute_metrics(self, dataset):
+        """
+        Compute and attach metrics to dataset predictions in-place.
+
+        For each prediction, adds 'cefr_prob' and 'bert_score' fields
+        based on the target CEFR level and reference summary.
+
+        Args:
+            dataset (list): Dataset with predictions to augment with metrics
+        """
 
         all_texts, all_references, metadata = self._flatten_dataset(dataset)
         cefr_probs_flat, bert_scores_flat = self._run_metrics(all_texts, all_references)
@@ -74,6 +135,15 @@ class Evaluator:
             self.print_metrics(dataset)
 
     def print_metrics(self, dataset):
+        """
+        Print aggregate metrics for each CEFR level.
+
+        Computes and displays mean BERTScore and CEFR probability
+        across all predictions for each reading level.
+
+        Args:
+            dataset (list): Dataset with computed metrics
+        """
         for label in CEFR_LABELS:
             bscores = []
             cefr_scores = []

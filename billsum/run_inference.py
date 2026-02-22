@@ -1,11 +1,22 @@
-# Augment dataset with rollouts
+"""
+Dataset augmentation script for generating model predictions using vLLM.
 
+This script generates text summaries for dataset examples at different CEFR levels
+using vLLM for efficient batch inference. Supports both evaluation mode (single
+sampling configuration) and rollout mode (multiple diverse sampling configurations).
 
-import json
-from vllm import SamplingParams
-from inference import TextGenerator
+Usage:
+    # Evaluation mode (single sampling config)
+    python run_inference.py --input_file dataset/input.jsonl \
+                            --output_file dataset/output.jsonl \
+                            --model_name google/gemma-3-1b-it
 
-# Augment dataset with rollouts
+    # Rollout mode (multiple sampling configs for RL training)
+    python run_inference.py --input_file dataset/input.jsonl \
+                            --output_file dataset/output.jsonl \
+                            --model_name google/gemma-3-1b-it \
+                            --rollouts
+"""
 
 import json
 import argparse
@@ -14,6 +25,12 @@ from inference import TextGenerator
 
 
 def parse_args():
+    """
+    Parse command-line arguments for inference script.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments
+    """
     parser = argparse.ArgumentParser(
         description="Augment dataset with rollout generations using vLLM"
     )
@@ -50,6 +67,12 @@ def parse_args():
 
 
 def main():
+    """
+    Main function for running inference on a dataset.
+
+    Loads dataset, initializes text generator with appropriate sampling parameters,
+    generates predictions for all CEFR levels, and saves the augmented dataset.
+    """
     args = parse_args()
 
     # Load dataset
@@ -58,13 +81,17 @@ def main():
 
     # Create sampling params
     if args.rollouts:
+        # Multiple diverse sampling configs for generating varied rollouts
         sampling_params_list = [
             SamplingParams(temperature=0.3, top_p=0.85, n=1, max_tokens=1024),
             SamplingParams(temperature=0.7, top_p=0.9, n=1, max_tokens=1024),
             SamplingParams(temperature=0.9, top_p=0.95, n=1, max_tokens=1024),
-            SamplingParams(temperature=1.1, top_p=1.0, n=1, max_tokens=1024, presence_penalty=0.6)
+            SamplingParams(
+                temperature=1.1, top_p=1.0, n=1, max_tokens=1024, presence_penalty=0.6
+            ),
         ]
     else:
+        # Single conservative sampling config for evaluation
         sampling_params_list = [
             SamplingParams(temperature=0.3, top_p=0.85, n=1, max_tokens=1024),
         ]
@@ -72,7 +99,7 @@ def main():
     # Initialize generator
     text_generator = TextGenerator(args.model_name, sampling_params_list)
 
-    # Generate
+    # Generate predictions for all CEFR levels
     text_generator.generate_dataset(dataset)
 
     # Save output
@@ -83,8 +110,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# input_file = "dataset/org_with_cefr_labels/RL_dev_xaa.jsonl"
-# output_file = "dataset/predictions/gemma/oob/RL_dev_xaa.jsonl"
-# model_name = "google/gemma-3-1b-it"
