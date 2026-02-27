@@ -14,7 +14,7 @@ Usage:
 Notes:
     - completion_only_loss needs to be True to only train on the completion
     - Preprocessing combines prompt + completion for proper training
-    - Long examples are filtered to prevent NaN eval_loss
+    - Long examples need to be filtered before to prevent NaN eval_loss
 """
 
 import os
@@ -28,13 +28,13 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig
 from trl import SFTTrainer, SFTConfig
-from prompts import PROMPT_TEMPLATE, SYSTEM_PROMPT
+from prompts import generate_input_content
 
 # ======================
 # Config
 # ======================
 
-MAX_SEQ_LENGTH = 4096
+MAX_SEQ_LENGTH = 2688
 
 # ======================
 # Data loading
@@ -53,11 +53,13 @@ def load_splits(train_path, dev_path) -> DatasetDict:
         DatasetDict: Dictionary containing 'train' and 'validation' datasets
     """
     train_df = pd.read_json(train_path, lines=True)
+    train_df = train_df.drop(columns=['__index_level_0__'])
     dev_df = pd.read_json(dev_path, lines=True)
+    dev_df = dev_df.drop(columns=['__index_level_0__'])
 
     # Drop rows with missing fields
     for df in (train_df, dev_df):
-        df.dropna(subset=["text", "summary", "cefr_labels"], inplace=True)
+        df.dropna(subset=["text", "summary", "level"], inplace=True)
 
     train = Dataset.from_pandas(train_df)
     dev = Dataset.from_pandas(dev_df)
@@ -86,57 +88,22 @@ def build_preprocess_fn(tokenizer):
     """
 
     def preprocess(example):
-        cefr_label = example["cefr_labels"][0]["label"][:1]
-        cefr_label = f"{cefr_label}1/{cefr_label}2"
 
         prompt = [
-            {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
-                "content": PROMPT_TEMPLATE.render(
-                    text=example["text"], level=cefr_label
-                ),
+                "content": generate_input_content(example["level"], example["text"]),
             },
         ]
         completion = [
-            {"role": "assistant", "content": example["summary"]},
+            {
+                "role": "assistant",
+                "content": "<summary> " + example["summary"] + " </summary>",
+            },
         ]
         return {"prompt": prompt, "completion": completion}
 
     return preprocess
-
-
-def filter_long_examples(dataset, tokenizer, max_length=MAX_SEQ_LENGTH):
-    """
-    Filter out examples that exceed the maximum sequence length.
-
-    Args:
-        dataset: HuggingFace Dataset to filter
-        tokenizer: Tokenizer for computing sequence lengths
-        max_length (int): Maximum allowed sequence length in tokens
-
-    Returns:
-        Dataset: Filtered dataset with only examples within length limit
-    """
-
-    def is_short_enough(batch):
-        texts = [
-            tokenizer.apply_chat_template(
-                p + c,
-                tokenize=False,
-                add_generation_prompt=False,
-            )
-            for p, c in zip(batch["prompt"], batch["completion"])
-        ]
-
-        tokenized = tokenizer(
-            texts,
-            truncation=False,
-        )
-
-        return [len(ids) <= max_length for ids in tokenized["input_ids"]]
-
-    return dataset.filter(is_short_enough, batched=True)
 
 
 def prepare_dataset(dataset: DatasetDict, tokenizer: AutoTokenizer) -> DatasetDict:
@@ -152,8 +119,6 @@ def prepare_dataset(dataset: DatasetDict, tokenizer: AutoTokenizer) -> DatasetDi
     """
     preprocess_fn = build_preprocess_fn(tokenizer)
     dataset = dataset.map(preprocess_fn)
-    dataset["train"] = filter_long_examples(dataset["train"], tokenizer)
-    dataset["validation"] = filter_long_examples(dataset["validation"], tokenizer)
     # Quick sanity check
     sample = next(iter(dataset["train"]))
     print(sample["prompt"])
@@ -213,7 +178,7 @@ def create_trainer(model_id: str, output_dir: str, dataset: DatasetDict) -> SFTT
 
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
         attn_implementation="eager",
         # quantization_config=quantization_config
     )
@@ -281,20 +246,20 @@ def main():
     )
     parser.add_argument(
         "--train_dataset",
+        required=True,
         type=str,
-        default="dataset/org_with_cefr_labels/us_sft_train.jsonl",
         help="Path to training dataset JSONL file",
     )
     parser.add_argument(
         "--eval_dataset",
+        required=True,
         type=str,
-        default="dataset/org_with_cefr_labels/us_sft_dev.jsonl",
         help="Path to evaluation dataset JSONL file",
     )
     parser.add_argument(
         "--output_dir",
+        required=True,
         type=str,
-        default="models/gemma_sft/v3",
         help="Directory to save the fine-tuned model",
     )
     args = parser.parse_args()

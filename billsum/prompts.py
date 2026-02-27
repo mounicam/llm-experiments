@@ -1,46 +1,37 @@
 """
-Prompt templates for CEFR-based text simplification.
+Prompt templates for target readability text simplification.
 
 This module provides utilities for generating prompts that instruct language models
-to summarize legal text at different CEFR (Common European Framework of Reference)
-readability levels.
+to summarize legal text at different readability levels.
 """
+
 from jinja2 import Template
 
-# CEFR proficiency levels: A (basic), B (independent), C (proficient)
-CEFR_LABELS = ["A", "B", "C"]
+READABILTIY_LABELS = ["beginner", "intermediate", "advanced"]
 
-SYSTEM_PROMPT = "You are helpful assistant designed to make English legal text more readable for different target audience at different CEFR readability levels."
+SYSTEM_PROMPT = """You are a Legislative Analysis Engine. Your task is to transform complex US Congressional bills into clear summaries.
 
-PROMPT_TEMPLATE = Template(
-    "Summarize the following text for a {{ level }} reader. {{ text }} \n Please output the summary as a paragraph."
-)
+Operational Rules:
+No Conversational Filler: Do not use phrases like 'Sure,' 'I can help,' or 'Here is the summary.'
+Structure: Use a 'Subject-Verb-Object' structure. Focus on active legislative verbs: 'Establishes,' 'Amends,' 'Directs,' 'Authorizes.'
+Formatting: Start your response immediately with the <summary> tag and end it with the </summary> tag.
+Readability Target: You will be provided with a target level (beginner, intermediate, or advanced). Adjust vocabulary and sentence complexity strictly to match that level.
+"""
 
 
-def generate_prompt(tokenizer, text, cefr_label):
-    """
-    Generate a formatted chat prompt for text simplification at a specific CEFR level.
+def generate_input_content(level, text):
+    """Formats the bill text for the prompt."""
+    return f"{SYSTEM_PROMPT}\n\nTarget Level: {level}\nBill Text: {text}"
 
-    Args:
-        tokenizer: Tokenizer with chat template support (e.g., from transformers)
-        text (str): The legal text to be summarized
-        cefr_label (str): CEFR level label (e.g., "A", "B", or "C")
 
-    Returns:
-        str: Formatted prompt string with chat template applied, ready for model input
-
-    Example:
-        >>> tokenizer = AutoTokenizer.from_pretrained("model_name")
-        >>> prompt = generate_prompt(tokenizer, "Legal text here...", "A")
-    """
-    # Expand CEFR label to include sublevels (e.g., "A" -> "A1/A2")
-    cefr_label = f"{cefr_label}1/{cefr_label}2"
+def generate_prompt(tokenizer, text, level):
+    """Generate a formatted chat prompt for text simplification at a specific readability level."""
     msg = [
-        {"role": "system", "content": SYSTEM_PROMPT},
         {
             "role": "user",
-            "content": PROMPT_TEMPLATE.render(text=text, level=cefr_label),
+            "content": generate_input_content(level, text),
         },
+        {"role": "assistant", "content": "<summary>"},
     ]
     final_msg = tokenizer.apply_chat_template(
         msg, tokenize=False, add_generation_prompt=True
