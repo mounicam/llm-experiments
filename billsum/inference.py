@@ -2,23 +2,23 @@
 Text generation module for efficient batch inference using vLLM.
 
 This module provides the TextGenerator class for generating text summaries
-at multiple CEFR levels using vLLM's optimized inference engine. It supports
+at multiple readability levels using vLLM's optimized inference engine. It supports
 prefix caching for efficient batch processing across different reading levels.
 """
 
 from vllm import LLM
 from prompts import generate_prompt
 from transformers import AutoTokenizer
-from prompts import CEFR_LABELS, SYSTEM_PROMPT, PROMPT_TEMPLATE
+from prompts import CEFR_LABELS, READABILTIY_LABELS
 
 
 class TextGenerator:
     """
-    Text generator for creating summaries at different CEFR levels using vLLM.
+    Text generator for creating summaries at different readability levels using vLLM.
 
-    This class handles efficient batch generation across multiple CEFR levels
-    (A, B, C) by flattening prompts, running a single generation pass, and
-    reshaping results back into the dataset structure.
+    This class handles efficient batch generation across multiple readability levels
+    (beginner, intermediate, advanced) by flattening prompts, running a single
+    generation pass, and reshaping results back into the dataset structure.
 
     Attributes:
         sampling_params_list: List of SamplingParams for diverse generation
@@ -43,29 +43,29 @@ class TextGenerator:
             tensor_parallel_size=1,
         )
 
-    def _generate_prompts_with_cefr_labels(self, dataset, cefr_label):
+    def _generate_prompts_with_readability_labels(self, dataset, label):
         """
-        Generate prompts for all dataset examples at a specific CEFR level.
+        Generate prompts for all dataset examples at a specific readability level.
 
         Args:
             dataset (list): List of dataset examples with 'text' field
-            cefr_label (str): CEFR level (A, B, or C)
+            label (str): Readability level (beginner, intermediate, or advanced)
 
         Returns:
             list: List of formatted prompts ready for generation
         """
         input_prompts = []
         for item in dataset:
-            final_msg = generate_prompt(self.tokenizer, item["text"], cefr_label)
+            final_msg = generate_prompt(self.tokenizer, item["text"], label)
             input_prompts.append(final_msg)
         return input_prompts
 
     def generate_dataset(self, dataset):
         """
-        Generate predictions for all CEFR levels and augment dataset in-place.
+        Generate predictions for all readability levels and augment dataset in-place.
 
         This method:
-        1. Pre-computes all prompts for all CEFR levels (A, B, C)
+        1. Pre-computes all prompts for all readability levels (beginner, intermediate, advanced)
         2. Runs a single batched generation call for efficiency
         3. Reshapes results back into the dataset structure
 
@@ -77,15 +77,15 @@ class TextGenerator:
         """
 
         # 1. PRE-COMPUTE ALL PROMPTS
-        # We create a massive list: [Prompt1_A, Prompt1_B... PromptN_C]
+        # We create a massive list: [Prompt1_beginner, Prompt1_intermediate... PromptN_advanced]
         all_flattened_prompts = []
-        for cefr_label in CEFR_LABELS:
-            prompts = self._generate_prompts_with_cefr_labels(dataset, cefr_label)
+        for label in READABILTIY_LABELS:
+            prompts = self._generate_prompts_with_readability_labels(dataset, label)
             all_flattened_prompts.extend(prompts)
         print(prompts[0])
 
         # 2. RUN ONE SINGLE GENERATION CALL
-        # This is where the magic happens. vLLM will parallelize across all labels automatically.
+        # vLLM will parallelize across all readability levels automatically.
         # We do this for each of your SamplingParams settings.
         all_generations = [[] for _ in range(len(all_flattened_prompts))]
 
@@ -96,10 +96,10 @@ class TextGenerator:
         print(all_generations[0])
 
         # 3. RE-SHAPE BACK INTO THE DATASET
-        # Since we flattened [Labels][Dataset], we unflatten carefully
+        # Since we flattened [ReadabilityLevels][Dataset], we unflatten carefully
         num_items = len(dataset)
         for label_idx, cefr_label in enumerate(CEFR_LABELS):
-            # Calculate where this label's results start in the big flat list
+            # Calculate where this readability level's results start in the big flat list
             offset = label_idx * num_items
             for i in range(num_items):
                 if "predictions" not in dataset[i]:

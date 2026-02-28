@@ -8,6 +8,7 @@ to summarize legal text at different readability levels.
 from jinja2 import Template
 
 READABILTIY_LABELS = ["beginner", "intermediate", "advanced"]
+CEFR_LABELS = {"beginner": "A", "intermediate": "B", "advanced": "C"}
 
 SYSTEM_PROMPT = """You are a Legislative Analysis Engine. Your task is to transform complex US Congressional bills into clear summaries.
 
