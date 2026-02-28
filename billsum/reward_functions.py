@@ -8,6 +8,7 @@ This module contains reward functions for evaluating model-generated summaries:
 """
 
 import textstat
+from bert_score import score
 from prompts import parse_summary
 
 MAX_SUMMARY_LENGTH = 512
@@ -138,21 +139,14 @@ def bertscore_reward_func(
     responses = [parse_summary(completion[0]["content"]) for completion in completions]
 
     try:
-        from bert_score import score
-
-        references = (
-            [answer] * len(responses)
-            if isinstance(answer, str)
-            else answer * len(responses)
-        )
         _, _, f1_flat = score(
             responses,
-            references,
-            model_type="roberta-large",
+            answer,
+            model_type="microsoft/deberta-v3-small",
             lang="en",
-            batch_size=16,
-            device="cuda:0",
-            verbose=False,
+            batch_size=8,
+            device=0,
+            verbose=True,
         )
         return f1_flat.tolist()
 
@@ -206,4 +200,43 @@ def format_reward_func(completions, **kwargs) -> list[float]:
 
         rewards.append(score)
 
+    return rewards
+
+
+def length_reward_func(completions, **kwargs):
+    """
+    Compute length-based rewards for generated completions.
+
+    Args:
+        completions: List of model-generated completions
+        **kwargs: Additional keyword arguments
+
+    Returns:
+        list[float]: Format length penalty scores for each completion
+    """
+    rewards = []
+    for text in completions:
+        length = len(text)  # Character count is more stable for BillSum
+
+        # 1. Extreme Short Penalty (The "Teaser" check)
+        if length < 500:
+            score = -1.0
+
+        # 2. Optimal Range (1,000 - 2,000 chars)
+        elif 1000 <= length <= 2000:
+            score = 1.0
+
+        # 3. Acceptable but not ideal (500-1000 or 2000-2500)
+        elif 500 <= length < 1000:
+            # Linear ramp up from 0.0 to 1.0
+            score = (length - 500) / 500
+        elif 2000 < length <= 2500:
+            # Linear ramp down from 1.0 to 0.0
+            score = 1.0 - ((length - 2000) / 500)
+
+        # 4. Too Long (The "Verbosity" check)
+        else:
+            score = -0.5
+
+        rewards.append(score)
     return rewards

@@ -20,7 +20,7 @@ from transformers import AutoTokenizer
 from datasets import DatasetDict
 from dataset_loader import load_splits
 from prompts import generate_input_content, READABILTIY_LABELS
-from reward_functions import fkgl_reward_func, bertscore_reward_func, format_reward_func
+from reward_functions import fkgl_reward_func, bertscore_reward_func, format_reward_func, length_reward_func
 
 # ======================
 # Config
@@ -153,7 +153,7 @@ def main():
         help="Directory to save the fine-tuned model",
     )
     parser.add_argument(
-        "--num_train_epochs", type=int, default=1, help="Number of training epochs"
+        "--num_train_epochs", type=int, default=3, help="Number of training epochs"
     )
 
     args = parser.parse_args()
@@ -165,7 +165,7 @@ def main():
         load_in_4bit=True,
         fast_inference=True,
         max_lora_rank=LORA_RANK,
-        gpu_memory_utilization=0.7,
+        gpu_memory_utilization=0.6,
         use_vllm=True,
         bnb_4bit_use_double_quant=True,
     )
@@ -177,7 +177,7 @@ def main():
     # Apply LoRA
     model = FastLanguageModel.get_peft_model(
         model,
-        r=args.lora_rank,
+        r=LORA_RANK,
         target_modules=[
             "q_proj",
             "k_proj",
@@ -187,7 +187,7 @@ def main():
             "up_proj",
             "down_proj",
         ],
-        lora_alpha=args.lora_rank,
+        lora_alpha=LORA_RANK,
         use_gradient_checkpointing=False,
         random_state=3407,
     )
@@ -215,19 +215,25 @@ def main():
         num_train_epochs=args.num_train_epochs,
         save_steps=500,
         max_grad_norm=1.0,
-        report_to="none",
         output_dir=args.output_dir,
         gradient_checkpointing=True,
         bf16=True,
         save_total_limit=10,
         save_strategy="steps",
         beta=0.1,
+        report_to="tensorboard",
+        logging_dir=f"{args.output_dir}/logs"
     )
 
     trainer = GRPOTrainer(
         model=model,
         processing_class=tokenizer,
-        reward_funcs=[fkgl_reward_func, bertscore_reward_func, format_reward_func],
+        reward_funcs=[
+            fkgl_reward_func,
+            bertscore_reward_func,
+            format_reward_func,
+            # length_reward_func,
+        ],
         args=training_args,
         train_dataset=dataset["train"],
     )

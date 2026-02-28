@@ -5,6 +5,7 @@ This module provides the BERTScoreMetric class for computing semantic
 similarity between generated summaries and reference summaries.
 """
 
+import torch
 from bert_score import score
 from .base_metric import BaseMetric
 

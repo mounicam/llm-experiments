@@ -10,7 +10,14 @@ import re
 from vllm import LLM
 from prompts import generate_prompt
 from transformers import AutoTokenizer
-from prompts import CEFR_LABELS, READABILTIY_LABELS, parse_summary
+from prompts import READABILTIY_LABELS, parse_summary
+
+import gc
+import torch
+from vllm.distributed.parallel_state import (
+    destroy_model_parallel,
+    destroy_distributed_environment,
+)
 
 
 class TextGenerator:
@@ -71,7 +78,7 @@ class TextGenerator:
         3. Reshapes results back into the dataset structure
 
         The dataset is modified in-place, adding a 'predictions' field with
-        structure: predictions[cefr_label][idx] = {"generation": text}
+        structure: predictions[label][idx] = {"generation": text}
 
         Args:
             dataset (list): List of dataset examples to augment with predictions
@@ -99,14 +106,21 @@ class TextGenerator:
         # 3. RE-SHAPE BACK INTO THE DATASET
         # Since we flattened [ReadabilityLevels][Dataset], we unflatten carefully
         num_items = len(dataset)
-        for label_idx, cefr_label in enumerate(CEFR_LABELS):
+        for label_idx, label in enumerate(READABILTIY_LABELS):
             # Calculate where this readability level's results start in the big flat list
             offset = label_idx * num_items
             for i in range(num_items):
                 if "predictions" not in dataset[i]:
                     dataset[i]["predictions"] = {}
                 # Parse content between <summary> tags for each generation
-                dataset[i]["predictions"][cefr_label] = [
+                dataset[i]["predictions"][label] = [
                     {"generation": parse_summary(gen)}
                     for gen in all_generations[offset + i]
                 ]
+
+    def close(self):
+        destroy_model_parallel()
+        del self.generator.llm_engine
+        del self.generator
+        gc.collect()
+        torch.cuda.empty_cache()

@@ -6,8 +6,10 @@ scores, BERTScore, and FKGL metrics on generated text summaries. These metrics
 are used as rewards for reinforcement learning (DPO/GRPO) training.
 """
 
+import gc
+import torch
 import numpy as np
-from prompts import CEFR_LABELS, READABILTIY_LABELS
+from prompts import READABILTIY_LABELS
 from metrics import BERTScoreMetric, CEFRMetric, FKGLMetric
 
 
@@ -40,9 +42,9 @@ class Evaluator:
             verbose=verbose,
         )
         self.bert_metric = BERTScoreMetric(
-            model_type="microsoft/deberta-xlarge-mnli",
-            batch_size=16,
-            device="cuda:0",
+            model_type="microsoft/deberta-large-mnli",
+            batch_size=2,
+            device=0,
             verbose=True,
         )
         self.fkgl_metric = FKGLMetric(verbose=verbose)
@@ -81,7 +83,7 @@ class Evaluator:
                 for k, cand_text in enumerate(preds):
                     all_texts.append(cand_text["generation"])
                     all_references.append(item["summary"])
-                    metadata.append((i, CEFR_LABELS[label], k))
+                    metadata.append((i, label, k))
         return all_texts, all_references, metadata
 
     def _run_metrics(self, all_texts, all_references, target_labels):
@@ -106,6 +108,9 @@ class Evaluator:
         cefr_scores_flat = self.cefr_metric.compute_metric(
             all_texts, target_labels=target_labels
         )
+        del self.cefr_metric.classifier
+        gc.collect()
+        torch.cuda.empty_cache()
 
         # Compute BERTScore F1 scores
         bert_scores_flat = self.bert_metric.compute_metric(all_texts, all_references)
@@ -136,7 +141,6 @@ class Evaluator:
         )
 
         for idx, (item_idx, label, cand_idx) in enumerate(metadata):
-            # Store metrics (CEFR score already computed for target label)
             dataset[item_idx]["predictions"][label][cand_idx]["cefr_prob"] = (
                 cefr_scores_flat[idx]
             )
@@ -171,13 +175,12 @@ class Evaluator:
         all_fkgl_scores = []
 
         for label in READABILTIY_LABELS:
-            cefr_label = CEFR_LABELS[label]
 
             bscores = []
             cefr_scores = []
             fkgl_scores = []
             for instance in dataset:
-                preds = instance["predictions"][cefr_label]
+                preds = instance["predictions"][label]
                 bscores.extend([pred["bert_score"] for pred in preds])
                 cefr_scores.extend([pred["cefr_prob"] for pred in preds])
                 fkgl_scores.extend([pred["fkgl_score"] for pred in preds])

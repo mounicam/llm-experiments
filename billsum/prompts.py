@@ -15,9 +15,18 @@ SYSTEM_PROMPT = """You are a Legislative Analysis Engine. Your task is to transf
 Operational Rules:
 No Conversational Filler: Do not use phrases like 'Sure,' 'I can help,' or 'Here is the summary.'
 Structure: Use a 'Subject-Verb-Object' structure. Focus on active legislative verbs: 'Establishes,' 'Amends,' 'Directs,' 'Authorizes.'
-Formatting: Start your response immediately with the <summary> tag and end it with the </summary> tag.
+**Formatting: Start your response immediately with the <summary> tag and end it with the </summary> tag. Please output a single paragraph. **
 Readability Target: You will be provided with a target level (beginner, intermediate, or advanced). Adjust vocabulary and sentence complexity strictly to match that level.
 """
+
+# SYSTEM_PROMPT = """You are a Legislative Analysis Engine. Your task is to transform complex US Congressional bills into clear summaries.
+
+# Operational Rules:
+# No Conversational Filler: Do not use phrases like 'Sure,' 'I can help,' or 'Here is the summary.'
+# Structure: Use a 'Subject-Verb-Object' structure. Focus on active legislative verbs: 'Establishes,' 'Amends,' 'Directs,' 'Authorizes.'
+# Formatting: Start your response immediately with the <summary> tag and end it with the </summary> tag.
+# Readability Target: You will be provided with a target level (beginner, intermediate, or advanced). Adjust vocabulary and sentence complexity strictly to match that level.
+# """
 
 
 def parse_summary(text):
@@ -47,8 +56,7 @@ def generate_prompt(tokenizer, text, level):
         {
             "role": "user",
             "content": generate_input_content(level, text),
-        },
-        {"role": "assistant", "content": "<summary>"},
+        }
     ]
     final_msg = tokenizer.apply_chat_template(
         msg, tokenize=False, add_generation_prompt=True

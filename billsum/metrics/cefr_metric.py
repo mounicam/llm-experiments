@@ -5,9 +5,12 @@ This module provides the CEFRMetric class for computing readability
 level scores based on the Common European Framework of Reference (CEFR).
 """
 
+import torch
 from tqdm import tqdm
 from transformers import pipeline
 from .base_metric import BaseMetric
+
+CEFR_LABELS = {"beginner": "A", "intermediate": "B", "advanced": "C"}
 
 
 class CEFRMetric(BaseMetric):
@@ -45,6 +48,7 @@ class CEFRMetric(BaseMetric):
             device=device,
             batch_size=batch_size,
             top_k=None,
+            torch_dtype=torch.float16,
         )
         self.batch_size = batch_size
 
@@ -88,6 +92,7 @@ class CEFRMetric(BaseMetric):
         for pred, target_label in zip(predictions, target_labels):
             probs_dict = {p["label"]: p["score"] for p in pred}
             # Sum probabilities for level1 and level2 (e.g., A1 + A2)
+            target_label = CEFR_LABELS[target_label]
             score = probs_dict.get(target_label + "1", 0.0) + probs_dict.get(
                 target_label + "2", 0.0
             )

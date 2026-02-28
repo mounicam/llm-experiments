@@ -32,11 +32,21 @@ Usage:
                             --metrics_output metrics.json
 """
 
+import gc
 import json
+import torch
 import argparse
 from vllm import SamplingParams
-from inference import TextGenerator
+from multiprocessing import Process
+from vllm.distributed.parallel_state import (
+    destroy_model_parallel,
+    destroy_distributed_environment,
+)
+
 from evaluator import Evaluator
+from inference import TextGenerator
+
+MAX_SEQ_LENGTH = 512
 
 
 def parse_args():
@@ -113,24 +123,27 @@ def main():
     if args.rollouts:
         # Multiple diverse sampling configs for generating varied rollouts
         sampling_params_list = [
-            SamplingParams(temperature=0.3, top_p=0.85, n=1, max_tokens=1024),
-            SamplingParams(temperature=0.7, top_p=0.9, n=1, max_tokens=1024),
-            SamplingParams(temperature=0.9, top_p=0.95, n=1, max_tokens=1024),
+            SamplingParams(temperature=0.3, top_p=0.85, n=1, max_tokens=MAX_SEQ_LENGTH),
+            SamplingParams(temperature=0.7, top_p=0.9, n=1, max_tokens=MAX_SEQ_LENGTH),
+            SamplingParams(temperature=0.9, top_p=0.95, n=1, max_tokens=MAX_SEQ_LENGTH),
             SamplingParams(
-                temperature=1.1, top_p=1.0, n=1, max_tokens=1024, presence_penalty=0.6
+                temperature=1.1,
+                top_p=1.0,
+                n=1,
+                max_tokens=MAX_SEQ_LENGTH,
+                presence_penalty=0.6,
             ),
         ]
     else:
         # Single conservative sampling config for evaluation
         sampling_params_list = [
-            SamplingParams(temperature=0.3, top_p=0.85, n=1, max_tokens=1024),
+            SamplingParams(temperature=0.3, top_p=0.85, n=1, max_tokens=MAX_SEQ_LENGTH),
         ]
 
-    # Initialize generator
-    text_generator = TextGenerator(args.model_name, sampling_params_list)
-
     # Generate predictions for all readability levels
+    text_generator = TextGenerator(args.model_name, sampling_params_list)
     text_generator.generate_dataset(dataset)
+    text_generator.close()
 
     # Compute metrics if requested
     if args.metrics:
