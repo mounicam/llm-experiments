@@ -6,10 +6,11 @@ at multiple readability levels using vLLM's optimized inference engine. It suppo
 prefix caching for efficient batch processing across different reading levels.
 """
 
+import re
 from vllm import LLM
 from prompts import generate_prompt
 from transformers import AutoTokenizer
-from prompts import CEFR_LABELS, READABILTIY_LABELS
+from prompts import CEFR_LABELS, READABILTIY_LABELS, parse_summary
 
 
 class TextGenerator:
@@ -104,6 +105,8 @@ class TextGenerator:
             for i in range(num_items):
                 if "predictions" not in dataset[i]:
                     dataset[i]["predictions"] = {}
+                # Parse content between <summary> tags for each generation
                 dataset[i]["predictions"][cefr_label] = [
-                    {"generation": gen} for gen in all_generations[offset + i]
+                    {"generation": parse_summary(gen)}
+                    for gen in all_generations[offset + i]
                 ]

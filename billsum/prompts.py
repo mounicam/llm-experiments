@@ -5,7 +5,7 @@ This module provides utilities for generating prompts that instruct language mod
 to summarize legal text at different readability levels.
 """
 
-from jinja2 import Template
+import re
 
 READABILTIY_LABELS = ["beginner", "intermediate", "advanced"]
 CEFR_LABELS = {"beginner": "A", "intermediate": "B", "advanced": "C"}
@@ -18,6 +18,22 @@ Structure: Use a 'Subject-Verb-Object' structure. Focus on active legislative ve
 Formatting: Start your response immediately with the <summary> tag and end it with the </summary> tag.
 Readability Target: You will be provided with a target level (beginner, intermediate, or advanced). Adjust vocabulary and sentence complexity strictly to match that level.
 """
+
+
+def parse_summary(text):
+    """
+    Extract content between <summary> and </summary> tags.
+
+    Args:
+        text (str): Generated text that may contain summary tags
+
+    Returns:
+        str: Content between summary tags, or original text if tags not found
+    """
+    match = re.search(r"<summary>(.*?)</summary>", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
 
 
 def generate_input_content(level, text):
